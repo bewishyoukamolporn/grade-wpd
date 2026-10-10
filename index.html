@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบแจ้งผลการเรียน | โรงเรียนวัดป่าแดง</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#211A35;--purple:#713BFF;--lime:#D7FF3F;--pink:#FF66B3;--cyan:#5DEBFF;--yellow:#FFE889;--paper:#FFFDF7}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:Kanit,sans-serif;color:var(--ink);background:linear-gradient(125deg,#DDF7FF,#EEE5FF 50%,#FFE5F3)}
+header{background:var(--paper);border-bottom:2px solid var(--ink);padding:12px 20px;font-weight:600}
+header small{display:block;font-weight:400;font-size:.8rem}
+main{max-width:760px;margin:auto;padding:28px 18px 60px}
+h1{font-size:clamp(2rem,7vw,3.2rem);line-height:1.1;margin:10px 0 6px;font-weight:800}
+h1 span{background:var(--lime);padding:0 .15em;border-radius:10px;display:inline-block;transform:rotate(-2deg)}
+.card{background:var(--paper);border:2px solid var(--ink);border-radius:24px;box-shadow:6px 6px 0 var(--ink);padding:22px;margin-top:22px}
+label{font-weight:600}
+input{width:100%;font:inherit;font-size:1.3rem;padding:12px 14px;margin:8px 0 14px;border:2px solid var(--ink);border-radius:14px;letter-spacing:.08em}
+button{font:inherit;font-weight:600;cursor:pointer;border:2px solid var(--ink);border-radius:14px;padding:12px 22px;background:var(--lime);box-shadow:4px 4px 0 var(--ink);transition:transform .15s,box-shadow .15s}
+button:active{transform:translate(4px,4px);box-shadow:0 0 0 var(--ink)}
+button.alt{background:#fff}
+button:disabled{opacity:.6}
+button:focus-visible,input:focus-visible{outline:3px solid #1355bd;outline-offset:3px}
+.err{color:#b00020;font-weight:500;min-height:1.4em;margin:0 0 10px}
+.who{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:center}
+.who h2{margin:0;font-size:1.5rem}
+.pill{display:inline-block;border:2px solid var(--ink);border-radius:99px;padding:2px 14px;background:var(--yellow);font-size:.9rem;margin:6px 6px 0 0}
+.sub{display:flex;align-items:center;justify-content:space-between;gap:12px;border:2px solid var(--ink);border-radius:18px;padding:14px 18px;margin-top:14px;background:#fff}
+.sub b{font-size:1.15rem}.sub p{margin:2px 0 0;font-size:.9rem}
+.g{min-width:76px;text-align:center;font-size:2rem;font-weight:800;border:2px solid var(--ink);border-radius:14px;padding:4px 10px;box-shadow:3px 3px 0 var(--ink)}
+.hi{background:var(--lime)}.mid{background:var(--cyan)}.low{background:var(--yellow)}.bad{background:var(--pink)}
+.note{font-size:.85rem;margin-top:18px;opacity:.8}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>โรงเรียนวัดป่าแดง<small>ระบบแจ้งผลการเรียน</small></header>
+<main>
+<h1>ตรวจ<span>ผลการเรียน</span><br>ของฉัน ✦</h1>
+<p>วิชาวิทยาการคำนวณ และคอมพิวเตอร์เพิ่มเติม</p>
+
+<section class="card" id="login">
+  <label for="sid">รหัสนักเรียน</label>
+  <input id="sid" inputmode="numeric" autocomplete="off" maxlength="15" placeholder="กรอกรหัสนักเรียน">
+  <p class="err" id="err" role="alert"></p>
+  <button id="go">เข้าดูผลการเรียน</button>
+</section>
+
+<section class="card" id="result" hidden>
+  <div class="who">
+    <div><h2 id="nm"></h2><span class="pill" id="cl"></span><span class="pill" id="no"></span></div>
+    <button class="alt" id="out">ออกจากระบบ</button>
+  </div>
+  <div id="list"></div>
+  <p class="note">เกรด ร = รอการตัดสิน (ติดต่อครูผู้สอนเพื่อแก้ไขผลการเรียน) · ผลการเรียนเป็นข้อมูลเฉพาะของนักเรียนแต่ละคน</p>
+</section>
+</main>
+
+<script>
+// 1) วาง URL ของ Web App จาก Apps Script (ลงท้ายด้วย /exec) ตรงนี้
+//    ถ้าเว้นว่าง ระบบจะเปิดโหมดทดลอง (ใช้รหัส 12345 กับข้อมูลสมมติ)
+const API_URL = 'https://script.google.com/macros/s/AKfycbx4_IcqR1B9cJgkXf92fgqqbIsKHFsPGs3u_p4L1la6QFwm6-PbVaBYcsEX0vCrUazFgg/exec';
+
+const LEVELS = {'4':['ดีเยี่ยม','hi'],'3.5':['ดีมาก','hi'],'3':['ดี','mid'],'2.5':['ค่อนข้างดี','mid'],
+  '2':['ปานกลาง','low'],'1.5':['พอใช้','low'],'1':['ผ่านเกณฑ์ขั้นต่ำ','low'],'0':['ไม่ผ่านเกณฑ์','bad'],
+  'ร':['รอการตัดสิน','bad'],'มส':['ไม่มีสิทธิ์เข้าสอบ','bad']};
+const $ = id => document.getElementById(id);
+
+async function fetchData(id){
+  if(!API_URL){
+    await new Promise(r=>setTimeout(r,400));
+    return id==='12345' ? {ok:true,name:'เด็กชาย ตัวอย่าง ทดลองระบบ',cls:'ม.1',no:1,
+      subjects:[{subject:'วิทยาการคำนวณ',grade:'3.5'},{subject:'คอมพิวเตอร์เพิ่มเติม',grade:'ร'}]}
+      : {ok:false,error:'ไม่พบรหัสนักเรียนนี้ (โหมดทดลอง ใช้ 12345)'};
+  }
+  const res = await fetch(API_URL+'?id='+encodeURIComponent(id));
+  return res.json();
+}
+
+function show(d){
+  $('nm').textContent = d.name || 'นักเรียน';
+  $('cl').textContent = 'ชั้น '+d.cls;
+  $('no').textContent = 'เลขที่ '+d.no;
+  const list = $('list'); list.textContent = '';
+  if(!d.subjects.length){ list.textContent = 'ยังไม่มีผลการเรียนของชั้นนี้ในระบบ'; }
+  d.subjects.forEach(s=>{
+    const [txt,cls] = LEVELS[s.grade] || ['ยังไม่มีผลการเรียน','low'];
+    const row = document.createElement('div'); row.className='sub';
+    const l = document.createElement('div');
+    const b = document.createElement('b'); b.textContent = s.subject;
+    const p = document.createElement('p'); p.textContent = txt;
+    l.append(b,p);
+    const g = document.createElement('div'); g.className='g '+cls; g.textContent = s.grade || '-';
+    row.append(l,g); list.append(row);
+  });
+  $('login').hidden = true; $('result').hidden = false;
+}
+
+async function submit(){
+  const id = $('sid').value.trim();
+  $('err').textContent = '';
+  if(!id){ $('err').textContent = 'กรุณากรอกรหัสนักเรียน'; return; }
+  $('go').disabled = true; $('go').textContent = 'กำลังตรวจสอบ...';
+  try{
+    const d = await fetchData(id);
+    d.ok ? show(d) : $('err').textContent = d.error || 'เกิดข้อผิดพลาด';
+  }catch(e){ $('err').textContent = 'เชื่อมต่อระบบไม่ได้ ลองใหม่อีกครั้ง'; }
+  $('go').disabled = false; $('go').textContent = 'เข้าดูผลการเรียน';
+}
+$('go').onclick = submit;
+$('sid').onkeydown = e => { if(e.key==='Enter') submit(); };
+$('out').onclick = () => { $('sid').value=''; $('result').hidden=true; $('login').hidden=false; $('sid').focus(); };
+</script>
+</body>
+</html>
